@@ -284,3 +284,64 @@ excluded from version control.
 - Every claim in the README and `RESEARCH.md` is backed by a passing test or
   was verified live; claims that could not be verified are labelled
   "unverified" or "not_configured" in the product itself.
+
+---
+
+## 11. Finalization pass (contributor branch `contributor/finalization-roadmap`)
+
+PR #1 was **merged** (`a708442`) before this pass started, so — per the
+roadmap's branch rule — a new contributor branch was created from `main` and
+this work is committed there for a follow-up review. Nothing was pushed or
+merged without owner approval.
+
+### What this pass adds
+
+1. **Runnable research evaluation harness** (roadmap §5: "deliver a runnable
+   harness and mark results pending"):
+   - `lib/evaluation.js` — the 8-scenario × 3-variant suite **frozen** before
+     any run (sha256 suite hash), deterministic run plan, and pure metric
+     functions M1–M4, M6, M8; `formatReport` renders explicit
+     **RESULTS PENDING / BLOCKED** wording when no model output exists.
+   - `scripts/evaluate.mjs` — `plan` / `run` / `score` CLI; stores raw model
+     responses verbatim under `evaluation/<runId>/` (git-ignored, never
+     overwritten), honors 429 `Retry-After`, never prints keys.
+   - `tests/evaluation.test.mjs` — 14 offline tests locking suite shape,
+     classification, metric math, determinism (M3), and report honesty.
+   - `RESEARCH.md` §6 updated to document the harness; **results remain
+     pending** (no model access in this environment).
+2. **`.gitignore`**: `/evaluation/` excluded — raw run data stays local.
+3. **Docs**: this section records the storage/deployment decision below.
+
+### Storage / deployment decision (roadmap §3)
+
+- Current target verified as **local, single-process** (`npm start` serving
+  JSON files under `data/` via `lib/store.js`: atomic temp+rename writes,
+  corrupt-file backup, ENOENT→empty, read errors thrown).
+- **No PostgreSQL migration was started.** The roadmap forbids a risky
+  migration without a confirmed hosted multi-instance/serverless target; no
+  such target is confirmed. File storage + in-process cron remain correct
+  *for single-process deployments only*; this is documented in README
+  "Known limitations" and must not be presented as durable multi-user
+  production storage.
+- Smallest safe step taken: decision documented, tests re-verified (below).
+  Migration blocker: requires owner confirmation of the deployment target
+  (and, if hosted: schema, migrations, indexes, backup/import, rollback).
+
+### Verification evidence (this pass)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit/integration | `npm test` | **exit 0 — 21 test files, 34/34 reported tests, 0 failures** (20 prior suites + new `tests/evaluation.test.mjs` with 14 tests) |
+| Production build | `npm run build` | clean, all routes emitted |
+| Lint | `npm run lint` | **not runnable non-interactively** — no ESLint config/binary exists in the repo, so `next lint` opens the interactive first-time setup prompt. Not configured here (adding ESLint + plugin would be a new dependency, deferred to the owner). |
+| Live HTTP battery | prod server on `:3456`, 25 checks | **25/25** — routes, 307/401 gates, origin-guard 403, signup/me session, cron lifecycle incl. run-now, SSRF loopback 400, email `503 not_configured`, propose `503` naming `OPENROUTER_API_KEY`, form submit 422 + submissions read-back |
+| Browser (headless Chrome/CDP) | 17 checks | **17/17** — theme switch+persist across reload, Tab focus, signup, email validation errors, honest AI failure message, Urdu RTL (`dir=rtl`, `lang=ur`, mixed Urdu/English preview), ltr restore, honest `not_configured` send, cron/form empty states, mobile 390px: no h-overflow, burger menu + panel, email page |
+| Harness CLI | `plan` / blocked `run` / `score` | exit 0 / 0 / 0; usage=2; missing dir=3; blocked report says RESULTS PENDING |
+| Secret scan | pattern scan of tracked files | only planted test dummies; no real keys |
+
+Mocked vs live: unit tests are offline; the HTTP battery and browser checks
+ran against a real production build locally. **BLOCKED:** real AI generation
+(no `OPENROUTER_API_KEY` configured here — server reports `503` naming the
+variable), real email delivery (no provider key — server reports
+`503 not_configured`). The previously shared OpenRouter key remains an
+owner-side revocation task and was never reproduced here.

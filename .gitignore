@@ -37,3 +37,8 @@ next-env.d.ts
 
 # local app data (users, sessions, cron jobs, form submissions): never commit
 /data/
+
+# research evaluation runs (raw model outputs + manifests): retained locally,
+# never committed — see RESEARCH.md §6 and scripts/evaluate.mjs
+/evaluation/
+tests
