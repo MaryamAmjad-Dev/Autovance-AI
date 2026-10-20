@@ -28,6 +28,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# browser-check artifacts (playwright-cli)
+.playwright-cli/
+
 # vercel
 .vercel
 
