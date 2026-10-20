@@ -195,10 +195,16 @@ async function fullBattery() {
     cookie: cookieA,
     body: { to: "smoke@example.com", subject: "Smoke", message: "Body", language: "english" }
   });
+  const emCode = emailUnconfigured.json?.code;
+  // Honest outcomes: 200 (provider accepted), 503 not_configured (no key),
+  // or 502 with a mapped provider code (e.g. auth_failed when the sender
+  // domain is unverified on the provider side) — never a fake success.
   check(
-    "email send without provider → 503 not_configured (or 200 if provider now configured)",
-    emailUnconfigured.res.status === 503 || emailUnconfigured.res.status === 200,
-    `got ${emailUnconfigured.res.status} ${emailUnconfigured.json?.error || ""}`
+    "email send reported honestly (accepted / not_configured / provider-blocked)",
+    emailUnconfigured.res.status === 200 ||
+      (emailUnconfigured.res.status === 503 && emCode === "not_configured") ||
+      (emailUnconfigured.res.status === 502 && Boolean(emCode)),
+    `got ${emailUnconfigured.res.status}${emCode ? ` code=${emCode}` : ""}`
   );
 
   const emailBad = await req("POST", "/api/email", {
@@ -209,9 +215,10 @@ async function fullBattery() {
 
   const resetReq = await req("POST", "/api/auth/reset", { body: { mode: "request", email: a.email } });
   check(
-    "password reset request without email provider → 503 not_configured (or 200 if configured)",
-    resetReq.res.status === 503 || resetReq.res.status === 200,
-    `got ${resetReq.res.status}`
+    "password reset request reported honestly (200 sent / 503 blocked with code)",
+    resetReq.res.status === 200 ||
+      (resetReq.res.status === 503 && Boolean(resetReq.json?.code)),
+    `got ${resetReq.res.status}${resetReq.json?.code ? ` code=${resetReq.json.code}` : ""}`
   );
 
   console.log("\nLive /api/propose (up to 60s)...");

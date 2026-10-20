@@ -29,7 +29,7 @@ import { rateLimitGuard } from "../../lib/rateLimit.js";
 
 const MAX_REQUEST_CHARS = 2000;
 const MAX_CONTEXT_CHARS = 2000;
-const UPSTREAM_TIMEOUT_MS = 45000;
+const UPSTREAM_TIMEOUT_MS = 60000;
 // Fallback used only when the AI_MODEL environment variable is unset.
 // "openrouter/free" (OpenRouter's free-model router) was chosen because it is
 // present in the live catalog with zero token pricing (verified 2026-10-20)
@@ -142,7 +142,13 @@ export default async function handler(req, res) {
           { role: "user", content: userMessage },
         ],
         temperature: 0.4,
-        max_tokens: 1600,
+        // Reasoning-capable free models (e.g. minimax-m3.1-flash) spend
+        // completion tokens on hidden reasoning before the visible answer.
+        // At 1600 the reasoning budget alone was exhausted (finish=length,
+        // empty content -> false model_output_invalid); 6000 gives the
+        // reasoning + full JSON proposal room to complete. Cost stays 0 on
+        // ":free" models.
+        max_tokens: 6000,
       }),
       signal: controller.signal,
     });

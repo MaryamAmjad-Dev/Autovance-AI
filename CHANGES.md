@@ -400,3 +400,43 @@ still rotate the previously exposed legacy key.
 | Research evaluation | **Harness runnable + honest; results PENDING** until upstream capacity allows a real run; M7 needs human raters |
 | Storage/deployment | unchanged — local single-process JSON under `data/`; PostgreSQL migration still awaiting owner's deployment-target confirmation |
 
+### 12.1 Live integration pass (owner-provided key, model & Resend)
+
+The owner configured `.env.local` (git-ignored) with a new OpenRouter key,
+`AI_MODEL=minimax/minimax-m3.1-flash:free`, and a Resend key. Findings and
+fixes from live testing:
+
+1. **`.env` template fixes** (local file only, never committed):
+   the Resend variable was misspelled `RESENDER_API_KEY` → corrected to
+   `RESEND_API_KEY` (the name `lib/emailSender.js` reads); added
+   `EMAIL_FROM` and `APP_BASE_URL` (password-reset emails require it in
+   production).
+2. **AI model diagnosis → code fix (`pages/api/propose.js`)**:
+   `minimax-m3.1-flash` is a *reasoning* model — with `max_tokens: 1600` it
+   spent the entire budget on hidden `reasoning_tokens` (1600/1600,
+   `finish=length`, **empty content**) so every real proposal failed as
+   `model_output_invalid`. Direct provider probes confirmed: same model with
+   `max_tokens: 6000` → **2/2 clean JSON** (also probed 5 other free models;
+   gemma-4 free pool 429, nemotron-lightning reasoning-starved, deepseek
+   free slugs 404, xing4.0 truncates/429-flaky). Fix: `max_tokens` 1600 →
+   6000 and upstream timeout 45s → 60s (commented in code).
+3. **Live results after fix (actual):**
+
+| Check | Result |
+|---|---|
+| `npm test` | 34/34 + evaluation 14/14, 0 failures |
+| `npm run build` | clean |
+| `npm run smoke` (prod) | **49/49 PASS** |
+| **Live `/api/propose`** | **200 ok — model `minimax/minimax-m3.1-flash:free`, 5 steps, `validation.valid=true`, 25.7s** (repeated passes in smoke) |
+| **Live email (Resend)** | **BLOCKED provider-side**: direct Resend API responds `403 The gmail.com domain is not verified` — Resend requires a verified custom domain (or SendGrid single-sender) as sender. App surfaces it honestly as `502 code=auth_failed` / reset `503`. Key itself is valid (reaches API, gets past auth). |
+| Password reset | code path works; blocked by the same sender restriction (`APP_BASE_URL` now set) |
+| Research harness | unchanged — runnable; a full run now unblocked on the AI side (mini-run earlier was 429-limited) |
+
+**Email unblock (owner action):** either (a) add + verify a custom domain
+on https://resend.com/domains (DNS SPF/DKIM/DMARC) and set
+`EMAIL_FROM="Autovance AI <no-reply@yourdomain.com>"`, or (b) use SendGrid
+whose free tier allows *single-sender verification* of a Gmail address
+(`SENDGRID_API_KEY` + `EMAIL_FROM` = that Gmail). Note: `noreply@gmail.com`
+cannot be used as a sender by anyone (Gmail provides no DNS/SPF control for
+it).
+
