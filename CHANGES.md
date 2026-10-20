@@ -586,3 +586,44 @@ driver).
 - Postgres backend exercised for real by the migration script (SSL connection
   to Neon, `CREATE TABLE`, upserts, count read-back).
 - Live deployment checks recorded in §13.4 below (filled after deploy).
+### 13.4 Live deployment evidence (`https://autovance-ai.vercel.app`)
+
+Deployed with `vercel --prod` from the contributor machine (the GitHub app
+webhook did not auto-deploy; git is pushed to `main` either way). One Hobby-
+plan adjustment was required: `crons` must be daily, not hourly (Vercel
+rejected the hourly expression outright during the first deploy attempt).
+
+- **Pages**: `/`, `/login`, `/signup`, `/workflows`, `/team` → 200;
+  `/dashboard` → 307 (auth gate).
+- **Auth against Postgres**: `npm run smoke` with
+  `SMOKE_BASE_URL=https://autovance-ai.vercel.app` → **49/49 checks passed**
+  (signup/login/logout/me, origin guard, validation, cron ownership 404s,
+  form submit + read-back, webhook SSRF 400). Signup/login proved the Neon
+  backend end-to-end.
+- **AI**: live `POST /api/propose` → `200`, structured 5-6 step proposal
+  (`model=minimax/minimax-m3.1-flash:free`).
+- **Vercel cron**: `GET /api/cron` with `Authorization: Bearer <CRON_SECRET>`
+  → `{"ok":true,"invokedBy":"cron_secret","executed":0,"scheduler":{"platform":"serverless (Vercel)"}}`;
+  wrong bearer → 401.
+- **Deploy-time bug found & fixed**: `.env.local` values are dotenv-quoted
+  (`KEY="value"`); the first env upload kept the surrounding quotes, so
+  OpenRouter and Brevo both answered 401 (`auth_failed`) on the first
+  deployment. Values were re-added quote-stripped (`--value`, verified by
+  length/prefix only) and the project redeployed — after which propose and
+  the cron bearer worked. Vercel applies env changes only on redeploy.
+- **Email — one owner action remains**: Brevo rejects Vercel's egress IP:
+  `HTTP 401 {"message":"We have detected you are using an unrecognised IP
+  address 100.59.28.84 … add the new IP address … app.brevo.com/security/
+  authorised_ips"}`. `/api/email` and `/api/auth/reset` report this honestly
+  (`502/503 code=auth_failed`) instead of faking success. Fix: in the Brevo
+  account either remove the authorised-IP restriction for this key or add
+  Vercel's IPs (note: serverless egress IPs can change; an unrestricted
+  transactional key is the stable option). Local sends from this machine
+  still succeed (IP authorised).
+- **Secrets hygiene**: no secret was printed in logs or committed; sensitive
+  env values are write-only in Vercel (pull redacts them — verified). One
+  Neon connection string appeared once in a CLI error trace (quote-wrapped
+  URL parse failure); rotation is optional but noted. The new cron secret
+  value is stored at `/tmp/opencode/cron.secret` (mode 600) on the
+  contributor machine and inside Vercel as a sensitive variable (unreadable
+  via CLI by design).
