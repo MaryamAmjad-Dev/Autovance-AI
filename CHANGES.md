@@ -476,3 +476,32 @@ the owner should confirm the two test emails (subject
 "Autovance AI — Brevo live delivery test" and the password-reset mail)
 actually arrived.
 
+### 12.3 Owner-requested UI copy changes (this pass)
+
+At the owner's explicit request:
+
+1. **Email success toast**: the raw provider wording
+   ("brevo accepted the email (HTTP 201). Delivery is asynchronous.") is no
+   longer shown in the UI; `/email` now displays
+   "Email sent — it should arrive in the inbox shortly." The technical
+   message stays in the API response (`data.message`) for logs/debugging,
+   and the API's honest success/error/blocked semantics are unchanged
+   (tests still assert them).
+2. **"model-generated · unverified" badges removed everywhere** — the
+   `aiTag` badges on Dashboard, Email and Form, and every
+   `srcTag model` badge + the model entry of the veracity legend on
+   `/workflows`. Verified live in the browser: 0 `.aiTag` /
+   0 `.srcTag.model` elements after a real AI generation; headings render
+   plain ("🎯 Goal", "🧭 Proposed plan", …). README, `/about` copy and
+   `meta.grounding` were updated so no document still claims output is
+   labelled in the UI; the scoresheet row that said "labelled unverified"
+   now says "unverified".
+   **Deliberately kept** (research-honesty prose required by the roadmap,
+   not badges): `EXPLANATION_LIMITATIONS` items shown with `meta.limitations`,
+   the scoresheet's own Q&A notes, and the "computed deterministically"
+   / "your foil" tags. Owner may remove those too on request — doing so
+   would weaken roadmap §5/§8 honesty claims, so it is flagged here.
+3. Evidence: `npm test` 0 failures; `npm run build` clean; browser checks
+   above; a live UI send produced
+   "✅ Email sent — it should arrive in the inbox shortly."
+

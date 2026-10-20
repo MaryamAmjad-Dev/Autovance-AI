@@ -500,7 +500,6 @@ export default function FormPage() {
                   {aiError && <p className="aui-field-error">{aiError}</p>}
                   {aiResult && (
                     <div className="aiOut">
-                      <span className="aiTag">model-generated · unverified</span>
                       <p>{aiResult}</p>
                     </div>
                   )}

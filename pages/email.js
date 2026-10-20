@@ -129,7 +129,13 @@ export default function EmailPage() {
         });
       } else {
         // Only reached when the provider API actually accepted the message.
-        setSendState({ type: "success", message: data.message, provider: data.provider });
+        // Show a friendly status; the provider's technical wording stays in
+        // the API response (data.message) for logs/debugging only.
+        setSendState({
+          type: "success",
+          message: "Email sent — it should arrive in the inbox shortly.",
+          provider: data.provider
+        });
       }
     } catch {
       setSendState({ type: "error", message: "Network error while sending." });
@@ -186,10 +192,7 @@ export default function EmailPage() {
 
           {draft && (
             <div className="draftBox" dir={lang.rtl ? "rtl" : "ltr"} lang={lang.lang}>
-              <h3>
-                Generated Email{" "}
-                <span className="aiTag">model-generated · unverified</span>
-              </h3>
+              <h3>Generated Email</h3>
               {draftSubject && (
                 <p className="draftSubject"><strong>Subject:</strong> {draftSubject}</p>
               )}

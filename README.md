@@ -86,7 +86,7 @@ the current environment, the app says so instead of showing a fake success.
 ### Dashboard and shared UI
 
 - Dashboard (`/dashboard`) shows the four feature cards and a quick AI text
-  generator. AI output is always labelled **"model-generated · unverified"**.
+  generator.
 - Shared Navbar (five primary links) and Footer (Workflow Builder is linked
   from the dashboard tools and the footer as the secondary research tool),
   light/dark themes with a pre-paint boot script (no flash, no OS override),

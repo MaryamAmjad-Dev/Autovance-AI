@@ -85,7 +85,6 @@ export default function Dashboard() {
           )}
           {result && (
             <div className="resultBox">
-              <span className="aiTag">model-generated · unverified</span>
               <p>{result}</p>
             </div>
           )}

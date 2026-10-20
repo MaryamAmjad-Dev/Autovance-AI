@@ -21,7 +21,7 @@ const CARDS = [
   },
   {
     title: "AI Integration",
-    body: "Language-model features connected through the OpenRouter API. Model-generated text is labelled as unverified wherever it is shown."
+    body: "Language-model features connected through the OpenRouter API. The API response separates model-generated content from deterministic server-side validation."
   },
   {
     title: "Research Workflow Builder",

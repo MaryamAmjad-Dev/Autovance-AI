@@ -265,7 +265,7 @@ export default async function handler(req, res) {
       foil_source: foil ? "user" : "model",
       limitations: EXPLANATION_LIMITATIONS,
       grounding:
-        "beliefs, rationales, assumptions and risks are model-generated and labelled; validation, contrastive differences and the dry run are deterministic server-side computations.",
+        "beliefs, rationales, assumptions and risks are model-generated; validation, contrastive differences and the dry run are deterministic server-side computations.",
     },
   });
 }

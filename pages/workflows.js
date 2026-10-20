@@ -148,12 +148,6 @@ export default function Workflows() {
             {/* VERACITY KEY: what is model text vs computed result */}
             <div className="legend">
               <p>
-                <span className="srcTag model">model-generated · unverified</span>
-                Text written by the AI (goal, beliefs, rationales, assumptions,
-                the alternative). Plausible-sounding, but not verified and not a
-                faithful account of any computation.
-              </p>
-              <p>
                 <span className="srcTag calc">computed deterministically</span>
                 Results computed on the server from the proposal data (validation
                 badge, plan differences, dry run). No AI is involved in these.
@@ -184,18 +178,18 @@ export default function Workflows() {
             {/* GOAL + OUTCOME (BDI-inspired: desire & intended outcome) */}
             <div className="grid2">
               <div className="propCard">
-                <h3>🎯 Goal <span className="srcTag model">model-generated</span></h3>
+                <h3>🎯 Goal</h3>
                 <p>{result.proposal.goal || "(missing)"}</p>
               </div>
               <div className="propCard">
-                <h3>🏁 Intended outcome <span className="srcTag model">model-generated</span></h3>
+                <h3>🏁 Intended outcome</h3>
                 <p>{result.proposal.outcome || "(missing)"}</p>
               </div>
             </div>
 
             {/* BELIEFS / CONTEXT */}
             <div className="propCard">
-              <h3>🧠 Context &amp; beliefs <span className="srcTag model">model-generated · unverified</span></h3>
+              <h3>🧠 Context &amp; beliefs</h3>
               <p className="hint">
                 “user” = taken from your request · “assumed” = inferred by the AI ·
                 both are extracted by the model and not independently verified
@@ -213,7 +207,7 @@ export default function Workflows() {
 
             {/* PLAN + RATIONALE + VISUALIZATION */}
             <div className="propCard">
-              <h3>🧭 Proposed plan <span className="srcTag model">steps + rationales: model-generated · unverified</span></h3>
+              <h3>🧭 Proposed plan</h3>
               <div className="steps">
                 {result.proposal.plan.map((step, i) => (
                   <div key={`plan-${step.id}-${i}`} className="pstep">
@@ -242,7 +236,7 @@ export default function Workflows() {
 
             {/* CONTRASTIVE ALTERNATIVE */}
             <div className="propCard">
-              <h3>⚖️ Alternative plan{result.proposal.alternative ? `: ${result.proposal.alternative.label}` : ""} <span className="srcTag model">model-generated</span></h3>
+              <h3>⚖️ Alternative plan{result.proposal.alternative ? `: ${result.proposal.alternative.label}` : ""}</h3>
               {result.meta && result.meta.foil && (
                 <p className="hint foilNote">
                   <span className="srcTag user">your foil</span>
@@ -289,7 +283,6 @@ export default function Workflows() {
 
             {/* ASSUMPTIONS / RISKS / MISSING INFO */}
             <p className="sectionNote">
-              <span className="srcTag model">model-generated · unverified</span>
               The model’s own account of what it assumed, what could go wrong, and
               what your request left out. Review it before relying on it.
             </p>
