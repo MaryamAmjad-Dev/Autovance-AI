@@ -46,7 +46,7 @@ function makeRes() {
   };
 }
 
-const ENV_KEYS = ["RESEND_API_KEY", "SENDGRID_API_KEY", "EMAIL_FROM"];
+const ENV_KEYS = ["BREVO_API_KEY", "RESEND_API_KEY", "SENDGRID_API_KEY", "EMAIL_FROM"];
 const savedEnv = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
 const clearEnv = () => ENV_KEYS.forEach((k) => delete process.env[k]);
 
@@ -117,7 +117,7 @@ await test("no provider configured -> 503 not_configured naming the variables", 
   assert.strictEqual(res.statusCode, 503);
   assert.strictEqual(res.body.code, "not_configured");
   assert.ok(
-    res.body.missing.join(" ").includes("RESEND_API_KEY or SENDGRID_API_KEY"),
+    res.body.missing.join(" ").includes("BREVO_API_KEY, RESEND_API_KEY or SENDGRID_API_KEY"),
     "names the provider key variables"
   );
   assert.ok(res.body.message.includes("nothing was sent"));
