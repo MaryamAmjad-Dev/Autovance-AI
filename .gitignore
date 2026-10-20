@@ -38,9 +38,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local app data (users, sessions, cron jobs, form submissions): never commit
-/data/
-
 # agent skills (installed by Neon marketplace integration)
 .agents/
 .claude/

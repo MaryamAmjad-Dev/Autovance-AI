@@ -1,12 +1,9 @@
-// Integration tests for pages/api/cron.js with real sessions and a temp data
-// directory: authentication, per-user ownership (no existence disclosure),
-// create/list/edit/toggle/run/delete, and honest 404/400 codes. Log-only jobs
-// execute without network.
+// Integration tests for pages/api/cron.js with real sessions and the
+// in-memory store: authentication, per-user ownership (no existence
+// disclosure), create/list/edit/toggle/run/delete, and honest 404/400 codes.
+// Log-only jobs execute without network.
 // Run with: npm test
 import assert from "node:assert";
-import fs from "fs";
-import os from "os";
-import path from "path";
 import handler from "../pages/api/cron.js";
 import { createUser, createSession } from "../lib/auth.js";
 
@@ -22,9 +19,6 @@ async function test(name, fn) {
     console.log("FAIL", name, "->", e.message);
   }
 }
-
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "av-cronapi-"));
-process.chdir(dataDir); // store() resolves cwd lazily; before any usage
 
 function makeRes() {
   return {

@@ -3,14 +3,10 @@
 // re-fired every 30s), dow=7 normalization, impossible-schedule rejection,
 // per-user ownership, and job editing.
 //
-// Isolation: a temp cwd is set BEFORE the first store() call, and both the
-// scheduler and the store are imported dynamically afterwards, so nothing
-// touches the repo's data/ directory. Log-only jobs execute without network.
+// Storage is the default in-memory store (no POSTGRES_URL in tests).
+// Log-only jobs execute without network.
 // Run with: npm test
 import assert from "node:assert";
-import fs from "fs";
-import os from "os";
-import path from "path";
 
 let passed = 0;
 let failed = 0;
@@ -24,9 +20,6 @@ async function test(name, fn) {
     console.log("FAIL", name, "->", e.message);
   }
 }
-
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "av-sched-"));
-process.chdir(dataDir); // before any store() call happens anywhere
 
 const sched = await import("../lib/scheduler.js");
 const { store } = await import("../lib/store.js");

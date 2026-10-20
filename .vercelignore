@@ -1,7 +1,6 @@
 # Files never uploaded by `vercel` CLI deployments (git deploys use the
 # repository, whose .gitignore already excludes these).
 .env*
-data/
 .claude/
 .agents/
 .playwright-cli/

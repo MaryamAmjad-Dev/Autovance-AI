@@ -13,7 +13,7 @@ const CARDS = [
   },
   {
     title: "Backend",
-    body: "Server-side logic in Next.js API routes, with JSON-file storage for accounts, jobs, and form data (no database required)."
+    body: "Server-side logic in Next.js API routes with Postgres persistence for accounts, jobs, and form data (via the Neon integration on Vercel)."
   },
   {
     title: "Authentication",

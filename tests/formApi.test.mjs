@@ -1,12 +1,9 @@
-// Integration tests for pages/api/form.js with a real session and a temp
-// data directory: auth, schema read/save (including select options
+// Integration tests for pages/api/form.js with a real session and the
+// in-memory store: auth, schema read/save (including select options
 // validation), server-side submission validation, honest follow-up status,
 // and the stored-submissions read-back endpoint.
 // Run with: npm test
 import assert from "node:assert";
-import fs from "fs";
-import os from "os";
-import path from "path";
 import handler from "../pages/api/form.js";
 import { createUser, createSession } from "../lib/auth.js";
 
@@ -22,9 +19,6 @@ async function test(name, fn) {
     console.log("FAIL", name, "->", e.message);
   }
 }
-
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "av-formapi-"));
-process.chdir(dataDir); // store() resolves cwd lazily; before any usage
 
 function makeRes() {
   return {

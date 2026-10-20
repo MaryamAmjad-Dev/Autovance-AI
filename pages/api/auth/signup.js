@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     return res.status(403).json({ ok: false, code: "cross_site", message: "Cross-site request blocked." });
   }
 
-  // Caps signup floods that would otherwise grow data/users.json unbounded.
+  // Caps signup floods that would otherwise grow the users table unbounded.
   const limited = rateLimitGuard(req, res, { name: "auth-signup", limit: 10, windowMs: 60000 });
   if (limited) return limited;
 

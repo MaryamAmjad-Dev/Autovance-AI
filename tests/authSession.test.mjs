@@ -1,13 +1,9 @@
 // Integration tests for lib/auth.js session, cookie, origin-guard, and
 // password-reset behaviour, including the TOCTOU regressions (concurrent
-// signups and concurrent single-use reset confirms). Storage is a fresh
-// temp directory: process.chdir runs before the first store() call, and the
-// store resolves its data directory lazily from cwd.
+// signups and concurrent single-use reset confirms). Storage is the default
+// in-memory store (no POSTGRES_URL in tests).
 // Run with: npm test
 import assert from "node:assert";
-import fs from "fs";
-import os from "os";
-import path from "path";
 import {
   SESSION_COOKIE,
   hashPassword,
@@ -41,9 +37,6 @@ async function test(name, fn) {
     console.log("FAIL", name, "->", e.message);
   }
 }
-
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "av-auth-"));
-process.chdir(dataDir); // before the first store() call anywhere below
 
 await test("createUser stores a normalized email and exposes no password hash", async () => {
   const r = await createUser({ name: "Alice", email: "ALICE@example.com", password: "correct horse battery" });

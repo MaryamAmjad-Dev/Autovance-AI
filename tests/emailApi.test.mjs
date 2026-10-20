@@ -4,9 +4,6 @@
 // the endpoint-level rate limit. Nothing is ever really sent.
 // Run with: npm test
 import assert from "node:assert";
-import fs from "fs";
-import os from "os";
-import path from "path";
 import handler from "../pages/api/email.js";
 import { createUser, createSession } from "../lib/auth.js";
 import { resetRateLimits } from "../lib/rateLimit.js";
@@ -23,9 +20,6 @@ async function test(name, fn) {
     console.log("FAIL", name, "->", e.message);
   }
 }
-
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "av-emailapi-"));
-process.chdir(dataDir); // store() resolves cwd lazily; do this before any use
 
 function makeRes() {
   return {

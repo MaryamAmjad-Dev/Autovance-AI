@@ -5,7 +5,7 @@
 //   POST -> submit a response               { values }
 //
 // Submissions are validated server-side against the stored definition, stored
-// in data/form-submissions.json, and (only if FORM_FOLLOWUP_WEBHOOK_URL is set)
+// in the store (via lib/store.js), and (only if FORM_FOLLOWUP_WEBHOOK_URL is set)
 // forwarded to that URL through the SSRF-safe fetcher. When no follow-up is
 // configured the API says so instead of inventing an action.
 

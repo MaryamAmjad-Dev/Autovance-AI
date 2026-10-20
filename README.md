@@ -27,7 +27,7 @@ the current environment, the app says so instead of showing a fake success.
 | UI | React 18, styled-jsx |
 | Plan preview canvas | React Flow 11 (`/workflows` only) |
 | Runtime | Node.js 18+ (built-in `fetch`, `crypto.scrypt`, `node --test`) |
-| Persistence | Postgres (Neon) on Vercel via `POSTGRES_URL`; JSON files under `data/` locally (git-ignored) |
+| Persistence | Postgres (Neon) via `POSTGRES_URL`; in-memory fallback for tests/local dev without a database |
 | Dependencies | Next.js, React, React Flow, and `pg` (Postgres driver) — no other runtime libraries |
 
 ## Features
@@ -118,9 +118,11 @@ npm run dev
 
 Open <http://localhost:3000>.
 
-> The app runs without any environment variables: you can sign up, create
-> cron jobs (log-only), build forms, and use webhooks to public endpoints. The
-> AI features and email sending additionally require the variables below.
+> The app runs without any environment variables (in-memory storage): you can
+> sign up, create cron jobs (log-only), build forms, and use webhooks to public
+> endpoints. The AI features and email sending additionally require the
+> variables below. Set `POSTGRES_URL` for durable persistence — without it,
+> data is lost on every restart.
 
 ## Environment variables
 
@@ -135,7 +137,7 @@ placeholder values; `.env*` files are git-ignored.
 | `EMAIL_FROM` | Real email sending | Verified sender identity for the chosen provider. |
 | `FORM_FOLLOWUP_WEBHOOK_URL` | Form follow-up webhook | Optional; unset means storage-only (reported as such). |
 | `APP_BASE_URL` | Password-reset emails in production | Public base URL used to build reset links; without it, production reset requests fail with an explicit configuration error instead of trusting request headers. |
-| `POSTGRES_URL` | Persistence on Vercel/serverless | Postgres connection string (set automatically by the Neon integration). When present, `lib/store.js` uses Postgres; when absent, JSON files under `data/` are used (local dev and tests). |
+| `POSTGRES_URL` | Durable persistence | Postgres connection string (set automatically by the Neon integration on Vercel). When present, `lib/store.js` uses Postgres; when absent, an in-memory store is used (tests and local dev only — data does not survive restarts). |
 | `CRON_SECRET` | Vercel cron | Random secret; Vercel sends it as `Authorization: Bearer …` to the hourly `/api/cron` invocation. Unset means that path is disabled. |
 
 ## Commands
@@ -185,9 +187,7 @@ lib/
   workflowProposal.js  deterministic validation / diff / dry run (research core)
   explainabilityScoresheet.js  self-assessment data (research)
 components/            Navbar, Footer, ParticleBackground, theme, auth, cards
-tests/                 node --test suites (offline)
-data/                  local JSON store: users, sessions, jobs, submissions
-                       (git-ignored; only used when POSTGRES_URL is unset)
+tests/                 node --test suites (offline, in-memory store)
 ```
 
 - **Auth:** passwords hashed with scrypt (salted), sessions are server-side
@@ -203,14 +203,12 @@ data/                  local JSON store: users, sessions, jobs, submissions
 
 ## Known limitations
 
-- **Storage backend is environment-selected:** with `POSTGRES_URL` set
-  (Vercel + Neon) all state lives in one Postgres table (`store_entries`);
-  without it, `lib/store.js` keeps JSON files under `data/`, which do **not**
-  survive serverless read-only filesystems — that combination is local-dev
-  only. `npm run migrate:pg` copies an existing `data/` directory into
-  Postgres. The store interface is async; `update()` locks a key so concurrent
-  signups, single-use reset tokens, and cron edits stay correct across
-  serverless instances.
+- **Storage backend:** Postgres (one `store_entries` table) when
+  `POSTGRES_URL` is set — the production path on Vercel + Neon. Without it,
+  an in-memory store is used for tests and local development; data does
+  **not** survive restarts in that mode. The store interface is async;
+  `update()` locks a key so concurrent signups, single-use reset tokens, and
+  cron edits stay correct across serverless instances.
 - Cron auto-execution requires a long-running process (see Cron Jobs above);
   the in-process rate limiter is per process; multiple processes could each
   tick (run one process for cron workloads).

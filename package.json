@@ -8,7 +8,6 @@
     "start": "next start",
     "lint": "next lint",
     "test": "node --test \"tests/*.test.mjs\"",
-    "migrate:pg": "node scripts/migrate-to-pg.mjs",
     "evaluate": "node scripts/evaluate.mjs",
     "smoke": "node scripts/smoke.mjs"
   },

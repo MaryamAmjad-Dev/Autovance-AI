@@ -16,7 +16,7 @@
 // account so existing deployments keep working. Jobs the caller does not own
 // report 404 "Job not found." (no existence disclosure).
 //
-// Jobs persist via lib/store.js (Postgres on Vercel, data/*.json locally).
+// Jobs persist via lib/store.js (Postgres in production, in-memory for tests).
 // Automatic execution happens only while a long-lived Node server is running
 // or when Vercel's cron invokes this route; the response always reports the
 // real scheduler status instead of claiming more.

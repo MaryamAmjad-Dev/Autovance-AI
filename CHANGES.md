@@ -641,3 +641,48 @@ All features are now live on Vercel with Postgres (Neon):
 auth, sessions, AI propose, cron (daily trigger + CRON_SECRET), forms,
 webhooks, email (Brevo), password reset, and the /workflows research
 prototype.
+
+## 14. Remove file-store backend — Postgres-only persistence
+
+With production fully on Postgres, the JSON-file backend is dead code.
+Simplified `lib/store.js` to two backends:
+
+- **Postgres** (production, `POSTGRES_URL`/`DATABASE_URL` set) — unchanged:
+  `store_entries` table, row-lock `update()`.
+- **In-memory** (`createMemoryStore()` and `store()` fallback) — for tests
+  and local dev without a database. `structuredClone` on `update()` so a
+  throwing callback leaves the stored value untouched.
+
+### 14.1 Code changes
+
+- `lib/store.js`: removed `fileStore()`, `createStore(dir)`, the `fs`/`path`
+  imports, and the lazy-cwd resolution. `store()` now returns Postgres when a
+  connection URL is present, else an in-memory store (with a console warning
+  if `NODE_ENV=production`). New export `createMemoryStore()` for tests.
+- `scripts/migrate-to-pg.mjs`: deleted (one-time migration already done;
+  `npm run migrate:pg` removed from `package.json`).
+- `data/` directory: deleted from disk; `/data/` removed from `.gitignore`
+  and `.vercelignore`.
+- Comments updated in `lib/auth.js`, `lib/forms.js`, `lib/scheduler.js`,
+  `pages/about.js`, `pages/api/auth/signup.js`, `pages/api/form.js`,
+  `pages/api/cron.js`.
+- `README.md`: persistence row, env-var table, architecture diagram, and
+  known-limitations section now describe Postgres + in-memory only.
+- `.env.example`: `POSTGRES_URL` comment updated.
+
+### 14.2 Test changes
+
+- `tests/store.test.mjs`: rewritten for the in-memory backend (roundtrip,
+  fallback, null handling, update mutation, rollback-on-throw, concurrent
+  serialization, `store()` default kind).
+- `tests/authSession.test.mjs`, `tests/cronApi.test.mjs`,
+  `tests/emailApi.test.mjs`, `tests/formApi.test.mjs`,
+  `tests/schedulerExec.test.mjs`: removed `fs.mkdtempSync` + `process.chdir`
+  isolation (no longer needed — the default store is in-memory and per-process).
+
+### 14.3 Verification
+
+- `npm test` → **34/34** suites pass, 0 failures.
+- `npm run build` → clean.
+- Live site unaffected (Vercel still has `POSTGRES_URL` set; redeploy picks
+  up the simplified store automatically).
