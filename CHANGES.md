@@ -627,3 +627,17 @@ rejected the hourly expression outright during the first deploy attempt).
   value is stored at `/tmp/opencode/cron.secret` (mode 600) on the
   contributor machine and inside Vercel as a sensitive variable (unreadable
   via CLI by design).
+
+### 13.5 Post-deploy: Brevo IP restriction removed (final state)
+
+After the owner removed the authorised-IP restriction from the Brevo API key
+in the Brevo dashboard, live sends from Vercel succeed:
+
+- `POST /api/email` → `{"ok":true,"provider":"brevo","message":"brevo accepted the email (HTTP 201). Delivery is asynchronous."}`
+- `POST /api/auth/reset` (mode=request) → `{"ok":true,"message":"If that email has an account, a reset link has been sent."}`
+- Full live smoke: **49/49 passed** on `https://autovance-ai.vercel.app`.
+
+All features are now live on Vercel with Postgres (Neon):
+auth, sessions, AI propose, cron (daily trigger + CRON_SECRET), forms,
+webhooks, email (Brevo), password reset, and the /workflows research
+prototype.
