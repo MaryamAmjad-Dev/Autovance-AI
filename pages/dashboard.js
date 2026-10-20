@@ -1,278 +1,355 @@
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
+import { useState } from "react";
+import Link from "next/link";
+import Navbar from "../components/layout/Navbar";
+import Footer from "../components/layout/Footer";
+import ParticleBackground from "../components/layout/ParticleBackground";
+import FeatureCard from "../components/dashboard/FeatureCard";
+import { FEATURES, TOOLS } from "../components/dashboard/features";
+import { describeAiFailure } from "../lib/aiError";
+import { requireAuth } from "../lib/requireAuth";
 
+export async function getServerSideProps(ctx) {
+  return requireAuth(ctx);
+}
+
+// Public heading copy (no personal greeting: this is a team project, and
+// branding must not present any individual as the project identity).
 export default function Dashboard() {
-  const router = useRouter();
-
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    const canvas = document.getElementById("bg");
-    const ctx = canvas.getContext("2d");
-
-    function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
-
-    resize();
-    window.addEventListener("resize", resize);
-
-    let particles = [];
-
-    for (let i = 0; i < 60; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: 2,
-        speedX: Math.random() * 0.5 - 0.25,
-        speedY: Math.random() * 0.5 - 0.25
-      });
-    }
-
-    function connect() {
-      for (let a = 0; a < particles.length; a++) {
-        for (let b = a; b < particles.length; b++) {
-          let dx = particles[a].x - particles[b].x;
-          let dy = particles[a].y - particles[b].y;
-          let dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist < 120) {
-            ctx.strokeStyle = "rgba(168,85,247,0.2)";
-            ctx.beginPath();
-            ctx.moveTo(particles[a].x, particles[a].y);
-            ctx.lineTo(particles[b].x, particles[b].y);
-            ctx.stroke();
-          }
-        }
-      }
-    }
-
-    function animate() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      particles.forEach(p => {
-        p.x += p.speedX;
-        p.y += p.speedY;
-
-        if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
-        if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = "#a855f7";
-        ctx.fill();
-      });
-
-      connect();
-      requestAnimationFrame(animate);
-    }
-
-    animate();
-  }, []);
-
+  // Guarded generation: no duplicate submissions while a request is in
+  // flight, no automatic retries, button restored on success or failure.
   const generateAI = async () => {
-    if (!prompt) return;
-
+    if (!prompt.trim() || loading) return;
     setLoading(true);
+    setError("");
 
-    const res = await fetch("/api/ai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt })
-    });
-
-    const data = await res.json();
-    setResult(data.result);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !data.result) {
+        setError(describeAiFailure(res.status, data));
+        setResult("");
+      } else {
+        setResult(data.result);
+      }
+    } catch {
+      setError(describeAiFailure(0, null));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="container">
-      <canvas id="bg"></canvas>
+      <ParticleBackground count={60} />
+      <Navbar />
 
-      {/* NAVBAR */}
-      <div className="navbar">
-        <h2 className="logo">Autovance AI</h2>
-
-        <div className="nav">
-          <span className="active">Dashboard</span>
-          <span onClick={() => router.push("/workflows")}>Workflows</span>
-          <span onClick={() => router.push("/team")}>Team</span>
-          <span onClick={() => router.push("/about")}>About</span>
-        </div>
-      </div>
-
-      {/* CENTER */}
-      <div className="center">
+      <main className="center">
         <h1 className="title">AI Dashboard</h1>
         <p className="subtitle">Build intelligent automations with AI</p>
 
-        <div className="inputBox">
-          <input
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe your automation idea..."
-          />
-          <button onClick={generateAI}>
-            {loading ? "Generating..." : "Generate"}
-          </button>
-        </div>
-
-        {result && <div className="resultBox">{result}</div>}
-
-        {/* FEATURES */}
-        <div className="grid">
-          <div className="card" onClick={() => router.push("/email")}>
-            <h3>Email Automation</h3>
-            <p>Auto send & reply emails</p>
+        {/* Hero: quick AI generator (existing feature, kept) */}
+        <section className="hero" aria-label="AI generator">
+          <label className="heroLabel" htmlFor="hero-prompt">
+            Describe your automation idea
+          </label>
+          <div className="inputBox">
+            <input
+              id="hero-prompt"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Describe your automation idea..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter") generateAI();
+              }}
+              disabled={loading}
+            />
+            <button onClick={generateAI} disabled={loading}>
+              {loading && <span className="spinner" aria-hidden="true" />}
+              {loading ? "Generating..." : "Generate"}
+            </button>
           </div>
 
-          <div className="card" onClick={() => router.push("/webhook")}>
-            <h3>Webhook</h3>
-            <p>Trigger external APIs</p>
-          </div>
+          {error && (
+            <div className="resultBox error" role="alert">
+              {error}
+            </div>
+          )}
+          {result && (
+            <div className="resultBox">
+              <span className="aiTag">model-generated · unverified</span>
+              <p>{result}</p>
+            </div>
+          )}
+        </section>
 
-          <div className="card" onClick={() => router.push("/cron")}>
-            <h3>Cron Jobs</h3>
-            <p>Schedule tasks</p>
+        {/* PRIMARY FEATURES: four cards, two columns on desktop */}
+        <section aria-labelledby="features-heading">
+          <h2 id="features-heading" className="sectionTitle">
+            Automation features
+          </h2>
+          <div className="grid">
+            {FEATURES.map((f, i) => (
+              <FeatureCard key={f.href} index={i} {...f} />
+            ))}
           </div>
+        </section>
 
-          <div className="card" onClick={() => router.push("/form")}>
-            <h3>Form Actions</h3>
-            <p>Handle submissions</p>
+        {/* SECONDARY TOOLS: compact, clearly not primary features */}
+        <section aria-labelledby="tools-heading">
+          <h2 id="tools-heading" className="sectionTitle">
+            Tools
+          </h2>
+          <div className="toolRow">
+            {TOOLS.map((t) => (
+              <Link key={t.href} href={t.href} className="toolLink">
+                <span className="toolTitle">{t.title}</span>
+                <span className="toolDesc">{t.desc}</span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </Link>
+            ))}
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
+
+      <Footer />
 
       <style jsx>{`
-
         .container {
           min-height: 100vh;
-          background: radial-gradient(circle at center, #1e1b4b, #020617);
-          color: white;
-          overflow: hidden;
-        }
-
-        canvas {
-          position: fixed;
-          top: 0;
-          left: 0;
-          z-index: 0;
-        }
-
-        .navbar {
           display: flex;
-          justify-content: space-between;
-          padding: 20px 60px;
-          position: relative;
-          z-index: 2;
-        }
-
-        .nav span {
-          margin: 0 15px;
-          cursor: pointer;
-          color: white;
-          opacity: 0.8;
-          transition: 0.3s;
-        }
-
-        .nav span:hover {
-          opacity: 1;
-          transform: translateY(-3px);
-          text-shadow: 0 0 10px #a855f7;
+          flex-direction: column;
+          background: var(--page-bg);
+          color: var(--page-text);
+          overflow-x: hidden;
         }
 
         .center {
+          flex: 1;
           text-align: center;
-          margin-top: 80px;
+          padding: 40px 16px 20px;
           position: relative;
           z-index: 2;
-          animation: fadeUp 1s ease;
+          animation: fadeUp 0.7s ease both;
+          width: 100%;
+          max-width: 960px;
+          margin: 0 auto;
         }
 
         .title {
-          font-size: 46px;
-          animation: glowText 2s infinite alternate;
+          font-size: 42px;
+          letter-spacing: 0.5px;
+        }
+
+        .sectionTitle {
+          font-size: 18px;
+          text-transform: uppercase;
+          letter-spacing: 2px;
+          color: var(--page-muted);
+          margin: 38px 0 16px;
         }
 
         .subtitle {
-          color: #c4b5fd;
-          margin-bottom: 30px;
+          color: var(--page-muted);
+          margin-bottom: 26px;
+        }
+
+        .hero {
+          background: var(--card-bg);
+          border: 1px solid var(--card-border);
+          box-shadow: var(--card-shadow);
+          border-radius: 18px;
+          padding: 24px;
+          margin-bottom: 8px;
+          text-align: left;
+          transition: background-color 0.25s ease, border-color 0.25s ease;
+        }
+
+        .heroLabel {
+          display: block;
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--page-hint);
+          margin-bottom: 10px;
+          letter-spacing: 0.3px;
         }
 
         .inputBox {
           display: flex;
           gap: 10px;
-          max-width: 700px;
-          margin: auto;
-          margin-bottom: 30px;
         }
 
         input {
           flex: 1;
+          min-width: 0;
           padding: 15px;
           border-radius: 12px;
-          border: none;
+          border: 1px solid var(--input-border);
+          background: var(--input-bg);
+          color: var(--page-text);
+          font-size: 14px;
+          transition: border-color 0.2s ease;
+        }
+
+        input:focus {
+          border-color: var(--accent);
         }
 
         button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
           padding: 15px 25px;
           border-radius: 12px;
           border: none;
           background: linear-gradient(135deg, #8b5cf6, #6366f1);
           color: white;
           cursor: pointer;
-          transition: 0.3s;
+          font-size: 14px;
+          font-weight: 600;
+          white-space: nowrap;
+          transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
         }
 
-        button:hover {
-          transform: scale(1.1);
-          box-shadow: 0 0 20px rgba(168,85,247,0.6);
+        button:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(168, 85, 247, 0.4);
+        }
+
+        button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         .resultBox {
-          max-width: 700px;
-          margin: 20px auto;
-          padding: 20px;
-          background: rgba(255,255,255,0.05);
+          margin-top: 16px;
+          padding: 18px;
+          background: var(--subtle-bg);
+          border: 1px solid var(--card-border);
           border-radius: 12px;
+          white-space: pre-wrap;
+          font-size: 14px;
+          line-height: 1.6;
+        }
+
+        .resultBox .aiTag {
+          display: inline-block;
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          padding: 2px 7px;
+          border-radius: 6px;
+          background: rgba(252,211,77,0.3);
+          color: var(--tag-model-text);
+          white-space: normal;
+          margin-bottom: 8px;
+        }
+
+        .resultBox p {
+          margin: 0;
+          white-space: pre-wrap;
+        }
+
+        .resultBox.error {
+          border-color: rgba(239, 68, 68, 0.5);
+          color: var(--danger);
         }
 
         .grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
-          gap: 25px;
-          max-width: 900px;
-          margin: auto;
+          gap: 20px;
         }
 
-        .card {
-          background: rgba(255,255,255,0.05);
-          padding: 40px;
-          border-radius: 20px;
-          cursor: pointer;
-          transition: 0.4s;
-          animation: fadeUp 1s ease;
+        .toolRow {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          justify-content: center;
         }
 
-        .card:hover {
-          transform: translateY(-12px) scale(1.05);
-          box-shadow: 0 0 35px rgba(168,85,247,0.4);
+        .toolLink {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 16px;
+          border: 1px dashed var(--input-border);
+          border-radius: 999px;
+          background: var(--subtle-bg);
+          font-size: 13px;
+          color: var(--page-text);
+          transition: border-color 0.2s ease, transform 0.2s ease;
         }
 
-        @keyframes glowText {
-          from { text-shadow: 0 0 5px #a855f7; }
-          to { text-shadow: 0 0 20px #a855f7; }
+        .toolLink:hover {
+          border-color: var(--accent);
+          transform: translateY(-2px);
+          text-shadow: none;
+        }
+
+        .toolLink:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: 2px;
+        }
+
+        .toolTitle {
+          font-weight: 600;
+        }
+
+        .toolDesc {
+          color: var(--page-hint);
         }
 
         @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(30px); }
-          to { opacity: 1; transform: translateY(0); }
+          from {
+            opacity: 0;
+            transform: translateY(24px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
+        @media (max-width: 768px) {
+          .title {
+            font-size: 30px;
+          }
+
+          .inputBox {
+            flex-direction: column;
+          }
+
+          .grid {
+            grid-template-columns: 1fr;
+            gap: 14px;
+          }
+
+          .toolDesc {
+            display: none;
+          }
+        }
       `}</style>
     </div>
   );

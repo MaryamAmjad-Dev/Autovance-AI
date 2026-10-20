@@ -24,8 +24,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env*.local
+# local env files (secrets); .env.example is the documented template and stays tracked
+.env*
+!.env.example
 
 # vercel
 .vercel
@@ -33,3 +34,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local app data (users, sessions, cron jobs, form submissions): never commit
+/data/
