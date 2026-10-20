@@ -41,4 +41,3 @@ next-env.d.ts
 # research evaluation runs (raw model outputs + manifests): retained locally,
 # never committed — see RESEARCH.md §6 and scripts/evaluate.mjs
 /evaluation/
-tests
