@@ -41,6 +41,11 @@ next-env.d.ts
 # local app data (users, sessions, cron jobs, form submissions): never commit
 /data/
 
+# agent skills (installed by Neon marketplace integration)
+.agents/
+.claude/
+skills-lock.json
+
 # research evaluation runs (raw model outputs + manifests): retained locally,
 # never committed — see RESEARCH.md §6 and scripts/evaluate.mjs
 /evaluation/
