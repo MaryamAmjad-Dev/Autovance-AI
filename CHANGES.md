@@ -345,3 +345,58 @@ ran against a real production build locally. **BLOCKED:** real AI generation
 variable), real email delivery (no provider key — server reports
 `503 not_configured`). The previously shared OpenRouter key remains an
 owner-side revocation task and was never reproduced here.
+
+---
+
+## 12. Follow-up verification pass (branch `contributor/roadmap-followup`)
+
+PRs #1 and #2 were already **merged** by the time this pass started
+(`main` @ `fcdf7a9`), so per the roadmap's branch rule a new contributor
+branch was cut from `main`. Nothing was pushed or merged without owner
+approval.
+
+### Changes in this pass
+
+1. **`.gitignore` fix (`584d2b5`)** — removed the bare `tests` entry added in
+   `6ed156d`. It silently ignored any *new* file under `tests/`, which would
+   have blocked the roadmap requirement to add regression tests. Verified:
+   a probe file in `tests/` now shows as untracked instead of ignored.
+2. **Reproducible live smoke battery (`f31cd5a`)** — `scripts/smoke.mjs`
+   (also `npm run smoke`): 48 HTTP checks against a running production
+   server, including a live `/api/propose` probe and a `--login-only` mode
+   for restart-persistence verification. Browser artifacts
+   (`.playwright-cli/`) are now git-ignored.
+
+### Verification evidence (this pass, actual output)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit/integration | `npm test` | **exit 0 — 21 files, 34/34 reported tests, 0 failures** |
+| Production build | `npm run build` | **exit 0 — clean, all routes emitted** |
+| Live HTTP battery | `node scripts/smoke.mjs` vs prod `:3456` | **48/48 PASS** — routes, 307/401 gates, signup/session/duplicate-409, wrong-password-401, origin-guard 403, cron full lifecycle (create/list/patch/run-now/delete, invalid schedule 400) with **cross-user isolation (B → 404)**, form 422/201 + submissions read-back + honest `not_configured` follow-up, webhook loopback SSRF 400, email `503 not_configured`, reset `503 not_configured` |
+| Restart persistence | server killed + restarted, `smoke.mjs --login-only` | **PASS** — pre-restart user logs in after restart (data under `data/` survives) |
+| Live AI (key now configured) | `/api/propose` (battery + one retry) | **429 `rate_limited`, `retryable: true` both times** — key is accepted (no 401); upstream OpenRouter free-tier capacity. Honest mapping verified; **real generation remains BLOCKED upstream** |
+| Research harness | `evaluate plan` / `run --reps 1 --limit 2` / `score` | plan exit 0 (frozen suite hash `44db8755…`); live mini-run stored 2 records, both 429 → `responded 0, unavailable 2`, report says **RESULTS PENDING/BLOCKED** (never fabricated); `score` exits 0 |
+| Browser (playwright-cli) | login, /workflows, /email, mobile 390px | theme toggle light→dark persists across reload (`data-theme` + localStorage); /workflows renders, no overflow; **390px: no horizontal overflow**; email language Urdu → editor `dir=rtl lang=ur` with mixed Urdu/English text, English restores LTR; only console entry is the expected logged-out `/api/auth/me` 401 |
+| Secret scan | pattern scan of full branch diff + tracked files | clean — only the documented planted test dummy in CHANGES.md |
+
+### Environment note
+
+`OPENROUTER_API_KEY` + `AI_MODEL=google/gemma-4-31b-it:free` were provided by
+the repo owner in a local git-ignored `.env.local` for this pass. The key
+value was never printed, committed, or written to any tracked file
+(`git check-ignore` confirms `.env.local` is ignored). The owner should
+still rotate the previously exposed legacy key.
+
+### Status after this pass
+
+| Area | Status |
+|------|--------|
+| Baseline tests/build | **PASS** (reproduced) |
+| Persistence (restart, ownership, read-back) | **PASS** (live-verified) |
+| Cron / Forms / Webhook / Email (code paths) | **PASS** (live-verified; email delivery itself BLOCKED — no provider key, reported honestly) |
+| Auth/session/origin-guard | **PASS** (live-verified) |
+| AI proposal | **BLOCKED upstream** — key configured and accepted; OpenRouter returns 429 for the free model. App surfaces it honestly. |
+| Research evaluation | **Harness runnable + honest; results PENDING** until upstream capacity allows a real run; M7 needs human raters |
+| Storage/deployment | unchanged — local single-process JSON under `data/`; PostgreSQL migration still awaiting owner's deployment-target confirmation |
+
