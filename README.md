@@ -71,11 +71,13 @@ the current environment, the app says so instead of showing a fake success.
    - **Where jobs execute:** on a long-lived Node server (`npm run dev` /
      `npm start`) an in-process tick runs enabled jobs automatically; the
      runner starts the first time the Cron Jobs page or its API is accessed
-     after a restart. On Vercel, `vercel.json` schedules an hourly invocation
+     after a restart. On Vercel, `vercel.json` schedules a daily invocation
      of `GET /api/cron` authenticated with `Authorization: Bearer
-     ${CRON_SECRET}`, and that invocation runs every due job. On other
-     serverless hosts without either, jobs are stored but not auto-executed —
-     use "Run now" or an external scheduler. The UI states the real status.
+     ${CRON_SECRET}`, and that invocation runs every due job — daily is the
+     maximum frequency Vercel's free (Hobby) plan allows (hourly needs Pro;
+     the schedule is a one-line change in `vercel.json`). On other serverless
+     hosts without either, jobs are stored but not auto-executed — use "Run
+     now" or an external scheduler. The UI states the real status.
 
 4. **Form Actions** (`/form`)
    - Schema editor (label/key/type/required, select options), server-side

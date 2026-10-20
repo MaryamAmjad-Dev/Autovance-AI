@@ -537,12 +537,16 @@ driver).
    `pages/api/{cron,form,email,webhook}.js`, `pages/api/auth/*`, and the
    tests. Business behaviour is unchanged; the API contracts and response
    bodies are identical (tests assert the same things as before).
-3. **Vercel cron support**: `vercel.json` schedules `GET /api/cron` hourly.
-   Vercel calls it with `Authorization: Bearer ${CRON_SECRET}`; `cron.js`
-   verifies the header with a SHA-256 + `timingSafeEqual` comparison and then
-   runs `tick()` (on serverless there is no long-lived in-process runner, so
-   scheduled execution happens inside this invocation). Session-based manual
-   use of the API is unchanged. Unset `CRON_SECRET` disables the path.
+3. **Vercel cron support**: `vercel.json` schedules `GET /api/cron` **daily**
+   (`0 0 * * *`) — Vercel's Hobby (free) plan rejects any schedule more
+   frequent than daily ("Hobby accounts are limited to daily cron jobs");
+   hourly would need Pro and is a one-line change back.
+   Vercel calls the route with `Authorization: Bearer ${CRON_SECRET}`;
+   `cron.js` verifies the header with a SHA-256 + `timingSafeEqual`
+   comparison and then runs `tick()` (on serverless there is no long-lived
+   in-process runner, so scheduled execution happens inside this
+   invocation). Session-based manual use of the API is unchanged. Unset
+   `CRON_SECRET` disables the path.
 4. **Function budgets**: `export const config = { maxDuration: 60 }` on
    `/api/propose` (matches its 60 s upstream timeout) and `/api/cron`.
 5. **`scripts/migrate-to-pg.mjs`** (`npm run migrate:pg`): copies an existing
