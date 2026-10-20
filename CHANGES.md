@@ -440,3 +440,39 @@ whose free tier allows *single-sender verification* of a Gmail address
 cannot be used as a sender by anyone (Gmail provides no DNS/SPF control for
 it).
 
+### 12.2 Brevo email integration — LIVE (this pass)
+
+The owner chose **Brevo** (they already had an account + SMTP credentials).
+Implemented in `3953aa7` (no new dependencies):
+
+1. **`lib/emailSender.js`**: third provider `BREVO_API_KEY` →
+   `POST https://api.brevo.com/v3/smtp/email` (`api-key` header;
+   `EMAIL_FROM` parsed into `{name, email}` for Brevo's `sender`).
+   Precedence **BREVO > RESEND > SENDGRID** (documented in `.env.example`).
+   `sanitizeDetail` now also redacts `xkeysib-` credential shapes.
+2. **Tests**: precedence, 201-success payload shape, 401 `auth_failed`
+   naming `BREVO_API_KEY` without leaking it, `xkeysib-` redaction —
+   `emailSender` 13/13, `emailApi` 10/10, full suite 0 failures.
+3. **Owner-side steps performed live**: created the `xkeysib-` API key
+   (an earlier attempt pasted a non-key value — detected by format check
+   and Brevo `401 Key not found`, value never printed); authorized this
+   server's IP at app.brevo.com/security/auth (Brevo `401 unrecognised IP`
+   cleared).
+
+**Live evidence after rebuild + restart:**
+
+| Check | Result |
+|---|---|
+| `POST /api/email` → owner's real inbox | **`200 ok, provider=brevo`, Brevo HTTP 201 accepted** |
+| `POST /api/auth/reset` (request mode) | **`200 ok`** — reset email accepted for delivery |
+| `npm run smoke` (prod) | **49/49 PASS** (email now 200, reset 200, propose 200) |
+| `npm test` | 0 failures (incl. new Brevo tests) |
+
+Note: Brevo's sender list endpoint (`GET /v3/smtp/senders`) returned
+`404` from their API — sender verification was instead proven by the
+successful live send itself. Delivery remains *asynchronous*: "accepted"
+means the provider API accepted it, never a guaranteed inbox placement —
+the owner should confirm the two test emails (subject
+"Autovance AI — Brevo live delivery test" and the password-reset mail)
+actually arrived.
+
