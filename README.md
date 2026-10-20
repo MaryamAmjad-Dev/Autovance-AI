@@ -11,6 +11,9 @@ features with a research prototype for **explainable workflow proposals**.
   optional user-supplied alternative, and previews a zero-side-effect dry run.
   See [RESEARCH.md](RESEARCH.md) for methodology, limitations, and the
   evaluation plan.
+- **Change record:** [CHANGES.md](CHANGES.md) documents every change in the
+  contributor handoff — full file inventory, verification results, and known
+  limitations.
 
 Everything is honest about what is and is not working: when a provider is not
 configured, when the AI model is rate limited, or when scheduling cannot run in
