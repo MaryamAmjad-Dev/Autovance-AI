@@ -127,6 +127,25 @@ Nothing in this section has been executed as a study; it defines the procedure
 and metrics so that a run is reproducible and its results are unambiguous.
 **Reported results: none yet.**
 
+A runnable harness now implements this plan:
+
+```bash
+node scripts/evaluate.mjs plan    # frozen 72-request plan + suite hash (offline)
+node scripts/evaluate.mjs run     # execute against a running app; raw outputs
+                                  # stored under evaluation/<runId>/ (git-ignored)
+node scripts/evaluate.mjs score evaluation/<runId>  # recompute metrics from
+                                  # stored records only (no model calls)
+```
+
+The suite (8 scenarios × plain/context/foil × repetitions) is frozen in
+`lib/evaluation.js` with a recorded sha256 suite hash; scoring rules (M1–M4,
+M6, M8) are implemented as pure functions in the same module and locked by
+`tests/evaluation.test.mjs`. When no model output is produced (no key, HTTP
+429, upstream failure), the generated `REPORT.md` states **RESULTS PENDING /
+BLOCKED** and reports every metric as *pending* — never as zero — and the run
+records are retained verbatim. M5 comes from the offline test suite, M7
+requires two human raters and is always reported separately.
+
 ### 6.1 Metrics
 
 | # | Metric | How it is measured | Target |
