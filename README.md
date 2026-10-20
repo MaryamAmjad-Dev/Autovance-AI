@@ -27,8 +27,8 @@ the current environment, the app says so instead of showing a fake success.
 | UI | React 18, styled-jsx |
 | Plan preview canvas | React Flow 11 (`/workflows` only) |
 | Runtime | Node.js 18+ (built-in `fetch`, `crypto.scrypt`, `node --test`) |
-| Persistence | JSON files under `data/` (git-ignored; no database) |
-| Dependencies | just the four listed above — no other runtime libraries |
+| Persistence | Postgres (Neon) on Vercel via `POSTGRES_URL`; JSON files under `data/` locally (git-ignored) |
+| Dependencies | Next.js, React, React Flow, and `pg` (Postgres driver) — no other runtime libraries |
 
 ## Features
 
@@ -68,12 +68,14 @@ the current environment, the app says so instead of showing a fake success.
      normalizes to Sunday like standard cron.
    - Ownership: jobs belong to the account that created them (legacy ownerless
      jobs stay shared so existing data keeps working).
-   - **Deployment limitation:** execution happens in an in-process tick that
-     runs only while a long-lived Node server is up (`npm run dev` / `npm
-     start`). The runner starts the first time the Cron Jobs page or its API is
-     accessed after a restart. On serverless platforms there is no such
-     process, so jobs are stored but not auto-executed — use "Run now" or an
-     external scheduler. The UI states this.
+   - **Where jobs execute:** on a long-lived Node server (`npm run dev` /
+     `npm start`) an in-process tick runs enabled jobs automatically; the
+     runner starts the first time the Cron Jobs page or its API is accessed
+     after a restart. On Vercel, `vercel.json` schedules an hourly invocation
+     of `GET /api/cron` authenticated with `Authorization: Bearer
+     ${CRON_SECRET}`, and that invocation runs every due job. On other
+     serverless hosts without either, jobs are stored but not auto-executed —
+     use "Run now" or an external scheduler. The UI states the real status.
 
 4. **Form Actions** (`/form`)
    - Schema editor (label/key/type/required, select options), server-side
@@ -127,10 +129,12 @@ placeholder values; `.env*` files are git-ignored.
 |----------|--------------|-------|
 | `OPENROUTER_API_KEY` | All AI generation | Server-side only; never sent to the client. Free-tier models can return HTTP 429 (reported honestly). |
 | `AI_MODEL` | All AI generation | Model slug; falls back to `openrouter/free` if unset. |
-| `RESEND_API_KEY` **or** `SENDGRID_API_KEY` | Real email sending | Configure exactly one. Without a key, sending reports "not configured". |
+| `BREVO_API_KEY` (preferred), else `RESEND_API_KEY` or `SENDGRID_API_KEY` | Real email sending | Precedence: Brevo > Resend > SendGrid. Without a key, sending reports "not configured". |
 | `EMAIL_FROM` | Real email sending | Verified sender identity for the chosen provider. |
 | `FORM_FOLLOWUP_WEBHOOK_URL` | Form follow-up webhook | Optional; unset means storage-only (reported as such). |
 | `APP_BASE_URL` | Password-reset emails in production | Public base URL used to build reset links; without it, production reset requests fail with an explicit configuration error instead of trusting request headers. |
+| `POSTGRES_URL` | Persistence on Vercel/serverless | Postgres connection string (set automatically by the Neon integration). When present, `lib/store.js` uses Postgres; when absent, JSON files under `data/` are used (local dev and tests). |
+| `CRON_SECRET` | Vercel cron | Random secret; Vercel sends it as `Authorization: Bearer …` to the hourly `/api/cron` invocation. Unset means that path is disabled. |
 
 ## Commands
 
@@ -180,7 +184,8 @@ lib/
   explainabilityScoresheet.js  self-assessment data (research)
 components/            Navbar, Footer, ParticleBackground, theme, auth, cards
 tests/                 node --test suites (offline)
-data/                  JSON store: users, sessions, jobs, submissions (git-ignored)
+data/                  local JSON store: users, sessions, jobs, submissions
+                       (git-ignored; only used when POSTGRES_URL is unset)
 ```
 
 - **Auth:** passwords hashed with scrypt (salted), sessions are server-side
@@ -190,15 +195,20 @@ data/                  JSON store: users, sessions, jobs, submissions (git-ignor
   enumeration, origin checks and per-IP rate limits on auth endpoints.
 - **Rate limiting:** in-memory per process on auth, AI, propose, and email-send
   endpoints (documented limitation: not global across processes).
-- **No claims beyond what exists:** there is no database, no microservices, no
+- **No claims beyond what exists:** there are no microservices, no
   Kubernetes, and no formal BDI implementation — the research prototype uses a
   BDI-*inspired* proposal structure, as stated in the UI and RESEARCH.md.
 
 ## Known limitations
 
-- `data/` is a local JSON store. On serverless hosts with ephemeral
-  filesystems, data does not survive deploys; run a persistent disk or adapt
-  `lib/store.js` before relying on it in production.
+- **Storage backend is environment-selected:** with `POSTGRES_URL` set
+  (Vercel + Neon) all state lives in one Postgres table (`store_entries`);
+  without it, `lib/store.js` keeps JSON files under `data/`, which do **not**
+  survive serverless read-only filesystems — that combination is local-dev
+  only. `npm run migrate:pg` copies an existing `data/` directory into
+  Postgres. The store interface is async; `update()` locks a key so concurrent
+  signups, single-use reset tokens, and cron edits stay correct across
+  serverless instances.
 - Cron auto-execution requires a long-running process (see Cron Jobs above);
   the in-process rate limiter is per process; multiple processes could each
   tick (run one process for cron workloads).

@@ -60,7 +60,7 @@ function mockFetch(impl) {
 }
 
 await createUser({ name: "Email Tester", email: "et@example.com", password: "hunter2hunter2" });
-const token = createSession("et@example.com");
+const token = await createSession("et@example.com");
 
 const authedReq = (body) => ({
   method: "POST",

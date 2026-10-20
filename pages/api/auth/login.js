@@ -31,7 +31,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, errors, message: "Please fix the highlighted fields." });
   }
 
-  const user = findUserByEmail(value.email);
+  const user = await findUserByEmail(value.email);
   // Unknown accounts still pay the full scrypt cost, so response time does
   // not reveal whether an email is registered.
   const passwordOk = user
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const token = createSession(user.email);
+  const token = await createSession(user.email);
   res.setHeader("Set-Cookie", sessionCookie(token, req));
   return res.status(200).json({
     ok: true,

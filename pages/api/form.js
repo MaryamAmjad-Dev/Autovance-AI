@@ -21,14 +21,14 @@ import { safeFetch, SafeFetchError } from "../../lib/safeFetch.js";
 
 const MAX_STORED_SUBMISSIONS = 200;
 
-function currentSchema() {
-  const stored = store().read("form-schema", null);
+async function currentSchema() {
+  const stored = await store().get("form-schema", null);
   if (stored && Array.isArray(stored.fields)) return stored;
   return DEFAULT_FORM;
 }
 
 export default async function handler(req, res) {
-  const user = getUserFromRequest(req);
+  const user = await getUserFromRequest(req);
   if (!user) {
     return res.status(401).json({ ok: false, error: "Not authenticated. Log in first." });
   }
@@ -43,13 +43,13 @@ export default async function handler(req, res) {
     let submissions = [];
     let total = 0;
     if (wantsSubmissions) {
-      const stored = store().read("form-submissions", []);
+      const stored = await store().get("form-submissions", []);
       total = stored.length;
       submissions = stored.slice(0, 20);
     }
     return res.status(200).json({
       ok: true,
-      schema: currentSchema(),
+      schema: await currentSchema(),
       followupConfigured: Boolean(followupUrl),
       ...(wantsSubmissions ? { submissions, total } : {})
     });
@@ -60,12 +60,12 @@ export default async function handler(req, res) {
     if (!ok) {
       return res.status(400).json({ ok: false, errors, message: "Invalid form configuration." });
     }
-    store().write("form-schema", value);
+    await store().set("form-schema", value);
     return res.status(200).json({ ok: true, schema: value });
   }
 
   if (req.method === "POST") {
-    const schema = currentSchema();
+    const schema = await currentSchema();
     const { ok, errors, cleaned } = validateSubmission(schema, (req.body && req.body.values) || {});
     if (!ok) {
       return res.status(422).json({
@@ -75,15 +75,18 @@ export default async function handler(req, res) {
       });
     }
 
-    const submissions = store().read("form-submissions", []);
     const submission = {
       id: `sub_${crypto.randomBytes(6).toString("hex")}`,
       submittedAt: new Date().toISOString(),
       submittedBy: user.email,
       values: cleaned
     };
-    submissions.unshift(submission);
-    store().write("form-submissions", submissions.slice(0, MAX_STORED_SUBMISSIONS));
+    let storedCount = 0;
+    await store().update("form-submissions", [], (submissions) => {
+      submissions.unshift(submission);
+      submissions.splice(MAX_STORED_SUBMISSIONS);
+      storedCount = submissions.length;
+    });
 
     // Optional follow-up action — reported exactly as it happens.
     let followup = { executed: false, reason: "not_configured" };
@@ -116,7 +119,7 @@ export default async function handler(req, res) {
     return res.status(201).json({
       ok: true,
       submission: { id: submission.id, storedAt: submission.submittedAt },
-      storedCount: Math.min(submissions.length, MAX_STORED_SUBMISSIONS),
+      storedCount,
       followup
     });
   }

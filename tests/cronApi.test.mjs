@@ -47,8 +47,8 @@ function makeRes() {
 
 await createUser({ name: "Alice", email: "alice@example.com", password: "hunter2hunter2" });
 await createUser({ name: "Bob", email: "bob@example.com", password: "hunter2hunter2" });
-const aliceTok = createSession("alice@example.com");
-const bobTok = createSession("bob@example.com");
+const aliceTok = await createSession("alice@example.com");
+const bobTok = await createSession("bob@example.com");
 
 const reqFor = (token, method, body, query) => ({
   method,

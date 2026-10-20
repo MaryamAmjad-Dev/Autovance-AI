@@ -505,3 +505,80 @@ At the owner's explicit request:
    above; a live UI send produced
    "✅ Email sent — it should arrive in the inbox shortly."
 
+
+## 13. Vercel deployment + Postgres persistence (owner request)
+
+At the owner's explicit request the app is deployed to Vercel with a Postgres
+database. Owner-approved deviation from the original "no database" note: the
+roadmap rule "no new dependency without justification" is satisfied by the
+justification "serverless filesystem is read-only; persistence requires a
+database" — the only new runtime dependency is `pg` (the official Postgres
+driver).
+
+### 13.1 What changed in the code
+
+1. **`lib/store.js` rewritten behind one async interface** —
+   `get / set / update(name, fallback, fn)` with two backends chosen from the
+   environment on first use:
+   - **file** (unchanged behaviour): JSON under `./data`, used locally and in
+     tests; the read/mutate/write inside `update()` runs synchronously so
+     nothing can interleave in-process.
+   - **postgres** (`POSTGRES_URL`/`DATABASE_URL` set): a single
+     `store_entries(name, value JSONB, updated_at)` table; `update()` runs
+     `BEGIN … SELECT … FOR UPDATE … UPDATE … COMMIT`, so the read-modify-write
+     is serialized **across serverless instances**, not just within one
+     process. Failed callbacks roll back with no write.
+   This replaces the previous sync `read/write` API; `update()` exists to
+   keep the concurrency guarantees the old sync code provided (documented
+   regressions: concurrent duplicate signups store exactly one user; two
+   concurrent confirms with one reset token succeed only once).
+2. **Consumers converted to `await`**: `lib/auth.js` (users, sessions, reset
+   tokens), `lib/scheduler.js` (jobs, history), `lib/requireAuth.js`,
+   `pages/api/{cron,form,email,webhook}.js`, `pages/api/auth/*`, and the
+   tests. Business behaviour is unchanged; the API contracts and response
+   bodies are identical (tests assert the same things as before).
+3. **Vercel cron support**: `vercel.json` schedules `GET /api/cron` hourly.
+   Vercel calls it with `Authorization: Bearer ${CRON_SECRET}`; `cron.js`
+   verifies the header with a SHA-256 + `timingSafeEqual` comparison and then
+   runs `tick()` (on serverless there is no long-lived in-process runner, so
+   scheduled execution happens inside this invocation). Session-based manual
+   use of the API is unchanged. Unset `CRON_SECRET` disables the path.
+4. **Function budgets**: `export const config = { maxDuration: 60 }` on
+   `/api/propose` (matches its 60 s upstream timeout) and `/api/cron`.
+5. **`scripts/migrate-to-pg.mjs`** (`npm run migrate:pg`): copies an existing
+   `data/*.json` store into `store_entries` (prints key names and counts
+   only — never stored values, which include password hashes). Supports
+   `--dry-run`.
+6. **Docs**: README (tech stack, env table incl. Brevo precedence,
+   cron section, storage limitation), `.env.example` (`POSTGRES_URL`,
+   `CRON_SECRET`).
+
+### 13.2 Vercel project configuration (done for the owner)
+
+- Project `autovance-ai` (team `maryamamjad-projects`), git-connected to this
+  repository's `main`.
+- **Neon Postgres** installed from the Vercel Marketplace as
+  `neon-carmine-battery` and connected to the project; `POSTGRES_URL` (and
+  the usual `PG*`/`DATABASE_URL` variants) exist in the **Production** and
+  **Preview** environments.
+- Environment variables set for Production (and Preview where relevant):
+  `OPENROUTER_API_KEY`, `AI_MODEL`, `BREVO_API_KEY`, `EMAIL_FROM`,
+  `APP_BASE_URL=https://autovance-ai.vercel.app`, `CRON_SECRET` (random,
+  sensitive), `POSTGRES_URL`.
+- Local `data/` migrated: 6 keys (`users` 14, `sessions` 22, `reset-tokens`
+  5, `form-submissions` 4, `cron-history` 4, `cron-jobs` 0) upserted into
+  `store_entries` — 6 rows confirmed. Temp env files deleted; no secret was
+  printed (one connection string briefly appeared in an error trace from a
+  quote-wrapped pull file; the value was never re-used or written anywhere —
+  rotation is optional but noted here for transparency).
+
+### 13.3 Verification (local, with the refactor)
+
+- `npm test` → **34/34** suites pass (all previous assertions, now async),
+  including the two concurrency regression suites.
+- `npm run build` → clean.
+- `npm run smoke` → **49/49** live HTTP checks against `localhost:3456`
+  (file backend).
+- Postgres backend exercised for real by the migration script (SSL connection
+  to Neon, `CREATE TABLE`, upserts, count read-back).
+- Live deployment checks recorded in §13.4 below (filled after deploy).

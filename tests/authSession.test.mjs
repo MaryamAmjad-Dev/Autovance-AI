@@ -50,8 +50,8 @@ await test("createUser stores a normalized email and exposes no password hash", 
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r.user.email, "alice@example.com");
   assert.ok(!("passwordHash" in r.user), "public user must not carry the hash");
-  assert.ok(findUserByEmail("alice@example.com"));
-  assert.strictEqual(findUserByEmail("nobody@example.com"), null);
+  assert.ok(await findUserByEmail("alice@example.com"));
+  assert.strictEqual(await findUserByEmail("nobody@example.com"), null);
 });
 
 await test("duplicate signup is rejected (pre-check and stored user)", async () => {
@@ -68,7 +68,7 @@ await test("REGRESSION: concurrent signups for one email store exactly one user"
   const wins = results.filter((r) => r.ok);
   assert.strictEqual(wins.length, 1, "exactly one signup may win");
   assert.ok(results.some((r) => r.code === "email_taken"), "the loser gets email_taken");
-  const users = store().read("users", []);
+  const users = await store().get("users", []);
   assert.strictEqual(users.filter((u) => u.email === "race@example.com").length, 1);
 });
 
@@ -78,11 +78,11 @@ await test("verifyPasswordDummy never throws (timing equalization is callable)",
 });
 
 await test("session lifecycle: token resolves the user, destroy revokes it", async () => {
-  const token = createSession("alice@example.com");
-  assert.deepStrictEqual(getSessionUser(token), { name: "Alice", email: "alice@example.com" });
-  assert.strictEqual(getSessionUser("deadbeefdeadbeef"), null);
-  destroySession(token);
-  assert.strictEqual(getSessionUser(token), null, "revoked token must not resolve");
+  const token = await createSession("alice@example.com");
+  assert.deepStrictEqual(await getSessionUser(token), { name: "Alice", email: "alice@example.com" });
+  assert.strictEqual(await getSessionUser("deadbeefdeadbeef"), null);
+  await destroySession(token);
+  assert.strictEqual(await getSessionUser(token), null, "revoked token must not resolve");
 });
 
 await test("session cookie carries HttpOnly/SameSite/Path and Secure only where required", () => {
@@ -145,10 +145,10 @@ await test("isCrossSiteRequest: matching, missing, and foreign origins", () => {
 });
 
 await test("reset token: single use, changes the password, replay is rejected", async () => {
-  const token = createResetToken("alice@example.com");
+  const token = await createResetToken("alice@example.com");
   const r1 = await resetPasswordWithToken(token, "brand-new-password-9");
   assert.strictEqual(r1.ok, true);
-  const user = findUserByEmail("alice@example.com");
+  const user = await findUserByEmail("alice@example.com");
   assert.strictEqual(await verifyPassword("brand-new-password-9", user.passwordHash), true);
   const r2 = await resetPasswordWithToken(token, "another-password-9");
   assert.strictEqual(r2.ok, false);
@@ -157,7 +157,7 @@ await test("reset token: single use, changes the password, replay is rejected", 
 });
 
 await test("REGRESSION: two concurrent confirms with one token succeed only once", async () => {
-  const token = createResetToken("alice@example.com");
+  const token = await createResetToken("alice@example.com");
   const results = await Promise.all([
     resetPasswordWithToken(token, "first-password-9"),
     resetPasswordWithToken(token, "second-password-9"),
@@ -167,14 +167,14 @@ await test("REGRESSION: two concurrent confirms with one token succeed only once
 });
 
 await test("expired reset tokens are rejected and removed", async () => {
-  const token = createResetToken("alice@example.com");
-  const tokens = store().read("reset-tokens", {});
+  const token = await createResetToken("alice@example.com");
+  const tokens = await store().get("reset-tokens", {});
   tokens[hashToken(token)].expiresAt = Date.now() - 1000;
-  store().write("reset-tokens", tokens);
+  await store().set("reset-tokens", tokens);
   const r = await resetPasswordWithToken(token, "expired-password-9");
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.code, "expired");
-  const after = store().read("reset-tokens", {});
+  const after = await store().get("reset-tokens", {});
   assert.ok(!after[hashToken(token)], "expired record is deleted");
 });
 

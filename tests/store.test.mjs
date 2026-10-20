@@ -1,5 +1,6 @@
-// Unit tests for lib/store.js — atomic JSON persistence with corrupt-file
-// backups. Uses a fresh temp directory; nothing touches the repo's data/.
+// Unit tests for lib/store.js — async JSON persistence with corrupt-file
+// backups, plus the locked update() contract. Uses a fresh temp directory;
+// nothing touches the repo's data/.
 // Run with: npm test
 import assert from "node:assert";
 import fs from "fs";
@@ -7,40 +8,30 @@ import os from "os";
 import path from "path";
 import { createStore } from "../lib/store.js";
 
-let passed = 0;
-let failed = 0;
-function test(name, fn) {
-  try {
-    fn();
-    passed++;
-    console.log("PASS", name);
-  } catch (e) {
-    failed++;
-    console.log("FAIL", name, "->", e.message);
-  }
-}
+const tests = [];
+const test = (name, fn) => tests.push({ name, fn });
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "av-store-"));
 const store = createStore(dir);
 
-test("write then read roundtrip", () => {
-  store.write("users", [{ id: 1 }]);
-  assert.deepStrictEqual(store.read("users"), [{ id: 1 }]);
+test("set then get roundtrip", async () => {
+  await store.set("users", [{ id: 1 }]);
+  assert.deepStrictEqual(await store.get("users"), [{ id: 1 }]);
 });
 
-test("missing file returns the caller's fallback", () => {
-  assert.deepStrictEqual(store.read("nothing-here", []), []);
-  assert.strictEqual(store.read("nothing-here", null), null);
+test("missing file returns the caller's fallback", async () => {
+  assert.deepStrictEqual(await store.get("nothing-here", []), []);
+  assert.strictEqual(await store.get("nothing-here", null), null);
 });
 
-test("a literal null payload also yields the fallback", () => {
+test("a literal null payload also yields the fallback", async () => {
   fs.writeFileSync(path.join(dir, "nul.json"), "null");
-  assert.deepStrictEqual(store.read("nul", ["fallback"]), ["fallback"]);
+  assert.deepStrictEqual(await store.get("nul", ["fallback"]), ["fallback"]);
 });
 
-test("corrupt JSON is backed up before starting fresh (data never silently destroyed)", () => {
+test("corrupt JSON is backed up before starting fresh (data never silently destroyed)", async () => {
   fs.writeFileSync(path.join(dir, "broken.json"), "{ not json !!");
-  const got = store.read("broken", ["fallback"]);
+  const got = await store.get("broken", ["fallback"]);
   assert.deepStrictEqual(got, ["fallback"]);
 
   // The original bytes must survive under a .corrupt-<timestamp> backup.
@@ -50,32 +41,73 @@ test("corrupt JSON is backed up before starting fresh (data never silently destr
   assert.strictEqual(preserved, "{ not json !!");
 
   // After the backup the store starts clean: a fresh write is valid JSON.
-  store.write("broken", { ok: true });
-  assert.deepStrictEqual(store.read("broken"), { ok: true });
+  await store.set("broken", { ok: true });
+  assert.deepStrictEqual(await store.get("broken"), { ok: true });
 });
 
-test("write creates the data directory when missing", () => {
+test("set creates the data directory when missing", async () => {
   const nested = createStore(path.join(dir, "deep", "nested"));
-  nested.write("k", { a: 1 });
-  assert.deepStrictEqual(nested.read("k"), { a: 1 });
+  await nested.set("k", { a: 1 });
+  assert.deepStrictEqual(await nested.get("k"), { a: 1 });
 });
 
-test("file names are sanitized so odd keys cannot escape the data directory", () => {
-  store.write("../evil name", { x: 1 });
+test("file names are sanitized so odd keys cannot escape the data directory", async () => {
+  await store.set("../evil name", { x: 1 });
   // Same odd key resolves to the same sanitized file on read.
-  assert.deepStrictEqual(store.read("../evil name"), { x: 1 });
+  assert.deepStrictEqual(await store.get("../evil name"), { x: 1 });
   // And nothing was written outside the store directory.
   assert.ok(!fs.existsSync(path.join(dir, "..", "evil name.json")));
   assert.ok(fs.readdirSync(dir).some((f) => f.endsWith(".json")));
 });
 
-test("an unreadable file throws instead of returning a fallback", () => {
+test("an unreadable file throws instead of returning a fallback", async () => {
   // A directory where the JSON file should be makes readFileSync fail with
   // EISDIR on every platform. Returning the fallback here would be dangerous:
   // the next write would overwrite data we could not read.
   fs.mkdirSync(path.join(dir, "locked.json"));
-  assert.throws(() => store.read("locked", []));
+  await assert.rejects(() => store.get("locked", []));
 });
 
-console.log(`store: ${passed} passed, ${failed} failed`);
+test("update persists an in-place mutation and returns the callback's value", async () => {
+  await store.set("counter", { n: 1 });
+  const seen = await store.update("counter", { n: 0 }, (data) => {
+    data.n += 1;
+    return data.n;
+  });
+  assert.strictEqual(seen, 2, "update returns what the callback returned");
+  assert.deepStrictEqual(await store.get("counter"), { n: 2 }, "mutation persisted");
+});
+
+test("update on a missing key starts from the caller's fallback", async () => {
+  await store.update("fresh-key", { items: ["a"] }, (data) => {
+    data.items.push("b");
+  });
+  assert.deepStrictEqual(await store.get("fresh-key"), { items: ["a", "b"] });
+});
+
+test("a throwing callback aborts the write (previous value untouched)", async () => {
+  await store.set("safe", { v: "before" });
+  await assert.rejects(
+    () =>
+      store.update("safe", { v: "fallback" }, (data) => {
+        data.v = "mutated-then-abort";
+        throw new Error("boom");
+      }),
+    /boom/
+  );
+  assert.deepStrictEqual(await store.get("safe"), { v: "before" }, "no write on throw");
+});
+
+let failed = 0;
+for (const { name, fn } of tests) {
+  try {
+    await fn();
+    console.log("PASS", name);
+  } catch (e) {
+    failed++;
+    console.log("FAIL", name, "->", e.message);
+  }
+}
+
+console.log(`store: ${tests.length - failed} passed, ${failed} failed`);
 if (failed > 0) process.exitCode = 1;

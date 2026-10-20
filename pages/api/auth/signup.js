@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   }
 
   // Extra existence check with a friendlier message than a race-y duplicate.
-  if (findUserByEmail(value.email)) {
+  if (await findUserByEmail(value.email)) {
     return res.status(409).json({
       ok: false,
       errors: { email: "An account with this email already exists. Try logging in." },
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const token = createSession(value.email);
+  const token = await createSession(value.email);
   res.setHeader("Set-Cookie", sessionCookie(token, req));
   return res.status(201).json({ ok: true, user: publicUser(created.user) });
 }

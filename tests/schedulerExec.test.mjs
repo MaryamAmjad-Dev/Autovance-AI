@@ -31,7 +31,7 @@ process.chdir(dataDir); // before any store() call happens anywhere
 const sched = await import("../lib/scheduler.js");
 const { store } = await import("../lib/store.js");
 
-const readJobs = () => store().read("cron-jobs", []);
+const readJobs = () => store().get("cron-jobs", []);
 
 await test("dow=7 normalizes to Sunday like standard cron", async () => {
   const check = sched.parseCron("0 0 * * 7");
@@ -88,8 +88,8 @@ await test("webhook jobs: missing URL and bad JSON are rejected; method is norma
 
 let job; // the shared "* * * * *" log job used by the execution tests below
 
-await test("createJob stamps owner, enabled, and a future nextRunAt", () => {
-  const created = sched.createJob(
+await test("createJob stamps owner, enabled, and a future nextRunAt", async () => {
+  const created = await sched.createJob(
     { name: "ticker", schedule: "* * * * *", action: { type: "log" } },
     "alice@example.com"
   );
@@ -103,10 +103,10 @@ await test("createJob stamps owner, enabled, and a future nextRunAt", () => {
 
 await test("REGRESSION: a due job fires exactly once, then nextRunAt advances (persisted)", async () => {
   // Force the job to be due.
-  const jobs = readJobs();
+  const jobs = await readJobs();
   const target = jobs.find((j) => j.id === job.id);
   target.nextRunAt = new Date(Date.now() - 1000).toISOString();
-  store().write("cron-jobs", jobs);
+  await store().set("cron-jobs", jobs);
 
   const now = new Date();
   const first = await sched.tick(now);
@@ -117,10 +117,10 @@ await test("REGRESSION: a due job fires exactly once, then nextRunAt advances (p
   const second = await sched.tick(now);
   assert.strictEqual(second.executed, 0, "must not re-fire before the next window");
 
-  const after = readJobs().find((j) => j.id === job.id);
+  const after = (await readJobs()).find((j) => j.id === job.id);
   assert.ok(new Date(after.nextRunAt).getTime() > now.getTime(), "nextRunAt moved into the future");
   assert.ok(after.lastRun && after.lastRun.ok === true, "run result persisted onto the job");
-  const history = sched.listHistory();
+  const history = await sched.listHistory();
   assert.strictEqual(history[0].jobName, "ticker");
 });
 
@@ -134,59 +134,59 @@ await test("runJobNow executes a log job and reports the honest summary; unknown
   assert.strictEqual(missing.code, "not_found");
 });
 
-await test("ownership: jobs are visible and manageable only by their owner", () => {
-  assert.ok(sched.visibleJobs("alice@example.com").some((j) => j.id === job.id));
-  assert.ok(!sched.visibleJobs("bob@example.com").some((j) => j.id === job.id), "other users must not see it");
+await test("ownership: jobs are visible and manageable only by their owner", async () => {
+  assert.ok((await sched.visibleJobs("alice@example.com")).some((j) => j.id === job.id));
+  assert.ok(!(await sched.visibleJobs("bob@example.com")).some((j) => j.id === job.id), "other users must not see it");
   assert.strictEqual(sched.canManage(job, "alice@example.com"), true);
   assert.strictEqual(sched.canManage(job, "bob@example.com"), false);
   assert.strictEqual(sched.canManage(job, ""), false);
 });
 
-await test("legacy ownerless jobs stay shared for migration compatibility", () => {
-  const legacy = sched.createJob(
+await test("legacy ownerless jobs stay shared for migration compatibility", async () => {
+  const legacy = await sched.createJob(
     { name: "legacy", schedule: "0 0 * * *", action: { type: "log" } }
     // no owner argument on purpose
   );
   assert.strictEqual(legacy.ok, true);
   assert.strictEqual(legacy.job.owner, undefined);
   assert.strictEqual(sched.canManage(legacy.job, "anyone@example.com"), true);
-  assert.ok(sched.visibleJobs("bob@example.com").some((j) => j.id === legacy.job.id));
+  assert.ok((await sched.visibleJobs("bob@example.com")).some((j) => j.id === legacy.job.id));
 });
 
-await test("updateJob edits name/schedule and recomputes nextRunAt", () => {
-  const upd = sched.updateJob(job.id, { name: "renamed", schedule: "*/5 * * * *" });
+await test("updateJob edits name/schedule and recomputes nextRunAt", async () => {
+  const upd = await sched.updateJob(job.id, { name: "renamed", schedule: "*/5 * * * *" });
   assert.strictEqual(upd.ok, true);
   assert.strictEqual(upd.job.name, "renamed");
   assert.strictEqual(upd.job.schedule, "*/5 * * * *");
-  const stored = readJobs().find((j) => j.id === job.id);
+  const stored = (await readJobs()).find((j) => j.id === job.id);
   assert.strictEqual(stored.name, "renamed", "edit is persisted");
   assert.ok(stored.nextRunAt, "nextRunAt recomputed after a schedule edit");
 });
 
-await test("updateJob rejects invalid edits without partially applying them", () => {
-  const before = readJobs().find((j) => j.id === job.id);
-  const bad = sched.updateJob(job.id, { schedule: "not a cron expression" });
+await test("updateJob rejects invalid edits without partially applying them", async () => {
+  const before = (await readJobs()).find((j) => j.id === job.id);
+  const bad = await sched.updateJob(job.id, { schedule: "not a cron expression" });
   assert.strictEqual(bad.ok, false);
   assert.ok(bad.errors.schedule);
-  const after = readJobs().find((j) => j.id === job.id);
+  const after = (await readJobs()).find((j) => j.id === job.id);
   assert.strictEqual(after.schedule, before.schedule, "schedule unchanged after failed edit");
   assert.strictEqual(after.name, before.name);
 });
 
-await test("enable/disable toggles and is persisted", () => {
-  const off = sched.updateJob(job.id, { enabled: false });
+await test("enable/disable toggles and is persisted", async () => {
+  const off = await sched.updateJob(job.id, { enabled: false });
   assert.strictEqual(off.ok, true);
   assert.strictEqual(off.job.enabled, false);
-  assert.strictEqual(readJobs().find((j) => j.id === job.id).enabled, false);
-  const on = sched.updateJob(job.id, { enabled: true });
+  assert.strictEqual((await readJobs()).find((j) => j.id === job.id).enabled, false);
+  const on = await sched.updateJob(job.id, { enabled: true });
   assert.strictEqual(on.job.enabled, true);
   assert.ok(on.job.nextRunAt, "re-enabling recomputes nextRunAt");
 });
 
-await test("deleteJob removes the job and reports not_found on repeat", () => {
-  assert.strictEqual(sched.deleteJob(job.id).ok, true);
-  assert.strictEqual(sched.deleteJob(job.id).code, "not_found");
-  assert.ok(!readJobs().some((j) => j.id === job.id), "gone from storage");
+await test("deleteJob removes the job and reports not_found on repeat", async () => {
+  assert.strictEqual((await sched.deleteJob(job.id)).ok, true);
+  assert.strictEqual((await sched.deleteJob(job.id)).code, "not_found");
+  assert.ok(!(await readJobs()).some((j) => j.id === job.id), "gone from storage");
 });
 
 console.log(`schedulerExec: ${passed} passed, ${failed} failed`);

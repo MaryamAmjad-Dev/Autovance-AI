@@ -269,3 +269,6 @@ export default async function handler(req, res) {
     },
   });
 }
+
+// Vercel: allow the full upstream AI timeout (60s) inside this function.
+export const config = { maxDuration: 60 };

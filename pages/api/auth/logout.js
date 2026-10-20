@@ -7,7 +7,7 @@ import {
   isCrossSiteRequest
 } from "../../../lib/auth.js";
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ ok: false, error: "Method not allowed." });
@@ -17,7 +17,7 @@ export default function handler(req, res) {
     return res.status(403).json({ ok: false, code: "cross_site", message: "Cross-site request blocked." });
   }
 
-  destroySession(tokenFromRequest(req));
+  await destroySession(tokenFromRequest(req));
   res.setHeader("Set-Cookie", clearSessionCookie(req));
   return res.status(200).json({ ok: true });
 }
